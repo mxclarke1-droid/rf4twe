@@ -1,0 +1,207 @@
+function updateSanta(time) {
+
+    if (!santaLoaded || !santaModel || !flying) {
+        return;
+    }
+
+    const current = santaRoute[routeIndex];
+    const next = santaRoute[routeIndex + 1];
+
+    if (!next) {
+
+        flying = false;
+
+        startButton.textContent = "START SANTA";
+
+        status.innerHTML =
+            "🎅 Santa completed the route!";
+
+        return;
+    }
+
+
+    /* Start this route segment */
+
+    if (!segmentStart) {
+        segmentStart = time;
+    }
+
+
+    /*
+       MUCH SLOWER FLIGHT
+
+       30 seconds per route segment
+       instead of 5 seconds.
+    */
+
+    segmentDuration = 30000;
+
+
+    let progress =
+        (time - segmentStart) /
+        segmentDuration;
+
+
+    if (progress >= 1) {
+
+        routeIndex++;
+
+        segmentStart = time;
+
+        return;
+    }
+
+
+    /* Smooth acceleration/deceleration */
+
+    const smooth =
+        progress *
+        progress *
+        (3 - 2 * progress);
+
+
+    /*
+       INTERPOLATE LATITUDE
+    */
+
+    const lat =
+        current.lat +
+        (next.lat - current.lat) *
+        smooth;
+
+
+    /*
+       INTERPOLATE LONGITUDE
+
+       This handles the International
+       Date Line correctly.
+    */
+
+    let lonDifference =
+        next.lon - current.lon;
+
+
+    if (lonDifference > 180) {
+        lonDifference -= 360;
+    }
+
+    if (lonDifference < -180) {
+        lonDifference += 360;
+    }
+
+
+    let lon =
+        current.lon +
+        lonDifference *
+        smooth;
+
+
+    /*
+       Keep longitude between -180 and 180
+    */
+
+    if (lon > 180) {
+        lon -= 360;
+    }
+
+    if (lon < -180) {
+        lon += 360;
+    }
+
+
+    /*
+       IMPORTANT:
+
+       Put Santa ABOVE the Earth,
+       not on the Earth's surface.
+    */
+
+    const SANTA_ALTITUDE =
+        EARTH_RADIUS + 0.55;
+
+
+    const position =
+        latLonToVector3(
+            lat,
+            lon,
+            SANTA_ALTITUDE
+        );
+
+
+    santaModel.position.copy(
+        position
+    );
+
+
+    /*
+       Calculate a point slightly ahead
+       of Santa along the route.
+    */
+
+    const lookAheadProgress =
+        Math.min(
+            smooth + 0.01,
+            1
+        );
+
+
+    const aheadLat =
+        current.lat +
+        (next.lat - current.lat) *
+        lookAheadProgress;
+
+
+    let aheadLon =
+        current.lon +
+        lonDifference *
+        lookAheadProgress;
+
+
+    if (aheadLon > 180) {
+        aheadLon -= 360;
+    }
+
+    if (aheadLon < -180) {
+        aheadLon += 360;
+    }
+
+
+    const aheadPosition =
+        latLonToVector3(
+            aheadLat,
+            aheadLon,
+            SANTA_ALTITUDE
+        );
+
+
+    /*
+       Point the sleigh toward
+       the direction of travel.
+    */
+
+    const direction =
+        aheadPosition
+            .sub(position)
+            .normalize();
+
+
+    const target =
+        position.clone()
+            .add(direction);
+
+
+    santaModel.lookAt(
+        target
+    );
+
+
+    /*
+       STATUS
+    */
+
+    status.innerHTML =
+        "🎅 SANTA IN FLIGHT<br>" +
+        "📍 " + current.name + "<br>" +
+        "🕐 " + current.zone + "<br>" +
+        "✈️ Flying to " + next.name;
+}
